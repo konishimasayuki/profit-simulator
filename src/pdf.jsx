@@ -23,6 +23,17 @@ export function buildRows(data, S, results) {
     m: data.memo.sales,
     b: 1,
   });
+  rows.push({
+    l: "整備粗利",
+    v: results.map((r) => fmt(r.seibi)),
+    m: data.memo.seibi,
+  });
+  rows.push({
+    l: "売上総利益",
+    v: results.map((r) => fmt(r.gross)),
+    m: data.memo.gross,
+    b: 1,
+  });
   rows.push({ sec: "販売費及び一般管理費" });
   for (const it of data.sga) {
     const total = S.totals[it.key];

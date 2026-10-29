@@ -48,7 +48,7 @@ export function defaultSga() {
 }
 
 export function makeScenario(name, units, rate) {
-  return { name, units, rate };
+  return { name, units, rate, seibi: 0 };
 }
 
 export function defaultData() {
@@ -115,6 +115,7 @@ export function normalize(d) {
       name: str(c.name, 60) || `パターン${i + 1}`,
       units: num(c.units),
       rate: num(c.rate),
+      seibi: num(c.seibi),
     })),
   };
 }
@@ -141,18 +142,22 @@ export function sgaSummary(d) {
 
 export function calc(c, d, s = sgaSummary(d)) {
   const sales = (d.price * c.units * c.rate) / 100;
-  const op = sales - s.sgaT;
+  const seibi = num(c.seibi);
+  const gross = sales + seibi;
+  const op = gross - s.sgaT;
   const tax = op > 0 ? (op * d.tax) / 100 : 0;
   const feePer = (d.price * c.rate) / 100;
   return {
     sales,
+    seibi,
+    gross,
     sgaT: s.sgaT,
     op,
-    opRate: sales ? op / sales : 0,
+    opRate: gross ? op / gross : 0,
     tax,
     net: op - tax,
     feePer,
     opPer: c.units ? op / c.units : 0,
-    bep: feePer > 0 ? Math.ceil(s.sgaT / feePer) : null,
+    bep: feePer > 0 ? Math.max(0, Math.ceil((s.sgaT - seibi) / feePer)) : null,
   };
 }

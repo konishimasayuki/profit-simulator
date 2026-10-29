@@ -388,6 +388,35 @@ export default function Simulator({ data, onChange, title }) {
                 onChange={(v) => setMemo("sales", v)}
               />
             </tr>
+            <tr>
+              <th className="lab">整備粗利</th>
+              {data.sc.map((c, i) => (
+                <td key={i}>
+                  <NumInput
+                    label="整備粗利"
+                    value={c.seibi}
+                    onChange={(v) => setSc(i, { seibi: v })}
+                  />
+                  <span className="u">円</span>
+                </td>
+              ))}
+              <MemoCell
+                value={data.memo.seibi}
+                onChange={(v) => setMemo("seibi", v)}
+              />
+            </tr>
+            <tr className="b1">
+              <th className="lab">売上総利益</th>
+              {results.map((r, i) => (
+                <td key={i} className="c">
+                  {fmt(r.gross)}
+                </td>
+              ))}
+              <MemoCell
+                value={data.memo.gross}
+                onChange={(v) => setMemo("gross", v)}
+              />
+            </tr>
 
             {section("販売費及び一般管理費")}
             {sgaRows}
