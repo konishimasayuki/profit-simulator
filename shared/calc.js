@@ -48,7 +48,7 @@ export function defaultSga() {
 }
 
 export function makeScenario(name, units, rate) {
-  return { name, units, rate, seibi: 0 };
+  return { name, units, rate };
 }
 
 export function defaultData() {
@@ -57,6 +57,7 @@ export function defaultData() {
     welfare: 15,
     tax: 30,
     price: 2000000,
+    seibi: 0,
     memo: {},
     sga: defaultSga(),
     sc: [
@@ -97,6 +98,7 @@ export function normalize(d) {
     welfare: num(d.welfare),
     tax: num(d.tax),
     price: num(d.price ?? d.sc[0]?.price ?? 2000000),
+    seibi: num(d.seibi ?? d.sc[0]?.seibi ?? 0),
     memo,
     sga: mergeSga(d.sga).map((it) => ({
       key: str(it.key, 40) || uid(),
@@ -115,7 +117,6 @@ export function normalize(d) {
       name: str(c.name, 60) || `パターン${i + 1}`,
       units: num(c.units),
       rate: num(c.rate),
-      seibi: num(c.seibi),
     })),
   };
 }
@@ -142,7 +143,7 @@ export function sgaSummary(d) {
 
 export function calc(c, d, s = sgaSummary(d)) {
   const sales = (d.price * c.units * c.rate) / 100;
-  const seibi = num(c.seibi);
+  const seibi = num(d.seibi);
   const gross = sales + seibi;
   const op = gross - s.sgaT;
   const tax = op > 0 ? (op * d.tax) / 100 : 0;

@@ -390,16 +390,17 @@ export default function Simulator({ data, onChange, title }) {
             </tr>
             <tr>
               <th className="lab">整備粗利</th>
-              {data.sc.map((c, i) => (
-                <td key={i}>
+              {sameCells(
+                data.seibi,
+                <td>
                   <NumInput
                     label="整備粗利"
-                    value={c.seibi}
-                    onChange={(v) => setSc(i, { seibi: v })}
+                    value={data.seibi}
+                    onChange={(v) => onChange({ ...data, seibi: v })}
                   />
                   <span className="u">円</span>
-                </td>
-              ))}
+                </td>,
+              )}
               <MemoCell
                 value={data.memo.seibi}
                 onChange={(v) => setMemo("seibi", v)}
