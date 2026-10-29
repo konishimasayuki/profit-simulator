@@ -253,22 +253,30 @@ thead th {
   background: var(--surface);
 }
 th.col {
-  min-width: 168px;
+  width: 190px;
+  min-width: 190px;
+  max-width: 190px;
   text-align: right;
 }
 th.col.best {
   background: var(--ink-soft);
 }
 th.col .tag {
-  display: inline-block;
+  display: block;
   font-size: 11px;
+  line-height: 16px;
+  height: 16px;
   color: var(--ink);
   font-weight: 700;
-  margin-bottom: 3px;
-  min-height: 16px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 input.nm {
+  display: block;
   width: 100%;
+  min-width: 0;
   font-weight: 700;
   text-align: right;
 }
@@ -346,4 +354,25 @@ tr.b2 > * {
 }
 .notes p {
   margin: 0 0 4px;
+}
+
+@media (max-width: 640px) {
+  th.lab {
+    min-width: 118px;
+    max-width: 118px;
+    white-space: normal;
+    font-size: 13px;
+  }
+  th.col {
+    width: 160px;
+    min-width: 160px;
+    max-width: 160px;
+  }
+  td input.n {
+    width: 104px;
+  }
+  .bars .row {
+    grid-template-columns: 84px 1fr auto;
+    gap: 8px;
+  }
 }
