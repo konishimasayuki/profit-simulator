@@ -1,37 +1,23 @@
 import { useMemo, useState } from "react";
-import { SGA, calc, defaultData, fmt, num } from "../shared/calc.js";
+import {
+  calc,
+  defaultData,
+  fmt,
+  num,
+  sgaSummary,
+  uid,
+} from "../shared/calc.js";
 
-const ROWS = [
-  { t: "sec", l: "前提条件" },
-  { t: "num", k: "price", l: "本体価格（1台）", u: "円" },
-  { t: "num", k: "units", l: "年間総台数", u: "台" },
-  { t: "rate", k: "rate", l: "代行手数料率" },
-  {
-    t: "num",
-    k: "cogs",
-    l: "1台あたり直接原価",
-    u: "円",
-    h: "陸送・検査・書類など",
-  },
-  { t: "sec", l: "損益計算（年間）" },
-  { t: "calc", k: "sales", l: "売上高（代行手数料）", b: 1 },
-  { t: "calc", k: "cogsT", l: "売上原価" },
-  { t: "calc", k: "gross", l: "売上総利益", b: 1 },
-  { t: "sec", l: "販売費及び一般管理費（年間）" },
-  ...SGA.map(([k, l]) => ({ t: "sga", k, l })),
-  { t: "calc", k: "welfare", l: "法定福利費", h: "役員報酬＋給料 × 率" },
-  { t: "calc", k: "sgaT", l: "販管費合計", b: 1 },
-  { t: "sec", l: "利益" },
-  { t: "calc", k: "op", l: "営業利益", b: 2 },
-  { t: "calc", k: "opRate", l: "営業利益率" },
-  { t: "calc", k: "opM", l: "月平均営業利益" },
-  { t: "calc", k: "tax", l: "法人税等（概算）" },
-  { t: "calc", k: "net", l: "税引後利益", b: 2 },
-  { t: "sec", l: "指標" },
-  { t: "calc", k: "feePer", l: "1台あたり手数料" },
-  { t: "calc", k: "opPer", l: "1台あたり営業利益" },
-  { t: "calc", k: "bep", l: "損益分岐台数（年間）" },
-  { t: "calc", k: "bepM", l: "損益分岐台数（月）" },
+const PROFIT_ROWS = [
+  { k: "op", l: "営業利益", b: 2 },
+  { k: "opRate", l: "営業利益率" },
+  { k: "tax", l: "法人税等（概算）" },
+  { k: "net", l: "税引後利益", b: 2 },
+];
+const INDEX_ROWS = [
+  { k: "feePer", l: "1台あたり手数料" },
+  { k: "opPer", l: "1台あたり営業利益" },
+  { k: "bep", l: "損益分岐台数" },
 ];
 
 function NumInput({ value, onChange, decimal, label, className = "n" }) {
@@ -57,17 +43,35 @@ function NumInput({ value, onChange, decimal, label, className = "n" }) {
   );
 }
 
+function MemoCell({ value, onChange }) {
+  return (
+    <td className="memo">
+      <input
+        className="memo-in"
+        aria-label="備考"
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </td>
+  );
+}
+
 function showCalc(k, v) {
   if (k === "opRate") return `${(v * 100).toFixed(1)}%`;
-  if (k === "bep" || k === "bepM") return v == null ? "—" : `${fmt(v)}台`;
+  if (k === "bep") return v == null ? "—" : `${fmt(v)}台`;
   return fmt(v);
 }
 
 export default function Simulator({ data, onChange }) {
-  const results = useMemo(() => data.sc.map((c) => calc(c, data)), [data]);
+  const S = useMemo(() => sgaSummary(data), [data]);
+  const results = useMemo(
+    () => data.sc.map((c) => calc(c, data, S)),
+    [data, S],
+  );
+  const cols = data.sc.length;
 
   const best = useMemo(() => {
-    if (data.sc.length < 2) return -1;
+    if (cols < 2) return -1;
     let bi = -1;
     let bv = Number.NEGATIVE_INFINITY;
     results.forEach((r, i) => {
@@ -77,68 +81,197 @@ export default function Simulator({ data, onChange }) {
       }
     });
     return bi;
-  }, [results, data.sc.length]);
+  }, [results, cols]);
 
   const setSc = (i, patch) =>
     onChange({
       ...data,
       sc: data.sc.map((c, j) => (j === i ? { ...c, ...patch } : c)),
     });
-
-  const setSga = (i, k, v) =>
+  const setMemo = (k, v) =>
+    onChange({ ...data, memo: { ...data.memo, [k]: v } });
+  const setItem = (idx, patch) =>
     onChange({
       ...data,
-      sc: data.sc.map((c, j) =>
-        data.shared || j === i ? { ...c, sga: { ...c.sga, [k]: v } } : c,
+      sga: data.sga.map((it, j) => (j === idx ? { ...it, ...patch } : it)),
+    });
+  const setDetail = (idx, id, patch) =>
+    setItem(idx, {
+      details: data.sga[idx].details.map((x) =>
+        x.id === id ? { ...x, ...patch } : x,
       ),
     });
+  const addDetail = (idx) => {
+    const it = data.sga[idx];
+    const first = it.details.length === 0;
+    const row = {
+      id: uid(),
+      name: "",
+      amount: first ? it.amount : 0,
+      memo: "",
+    };
+    setItem(idx, { open: true, details: [...it.details, row] });
+  };
+  const removeDetail = (idx, id) =>
+    setItem(idx, { details: data.sga[idx].details.filter((x) => x.id !== id) });
 
   const dup = (i) => {
-    const c = structuredClone(data.sc[i]);
-    c.name += "（複製）";
+    const c = { ...data.sc[i], name: `${data.sc[i].name}（複製）` };
     const sc = [...data.sc];
     sc.splice(i + 1, 0, c);
     onChange({ ...data, sc });
   };
-
   const del = (i) => {
-    if (data.sc.length < 2) return;
+    if (cols < 2) return;
     onChange({ ...data, sc: data.sc.filter((_, j) => j !== i) });
   };
-
   const add = () => {
-    const c = structuredClone(data.sc[data.sc.length - 1]);
-    c.name = `パターン${data.sc.length + 1}`;
+    const c = { ...data.sc[cols - 1], name: `パターン${cols + 1}` };
     onChange({ ...data, sc: [...data.sc, c] });
   };
-
-  const toggleShared = (checked) =>
-    onChange({
-      ...data,
-      shared: checked,
-      sc: checked
-        ? data.sc.map((c) => ({ ...c, sga: { ...data.sc[0].sga } }))
-        : data.sc,
-    });
-
   const reset = () => {
     if (window.confirm("このシミュレーションを初期値に戻しますか？"))
       onChange(defaultData());
   };
 
-  // 棒グラフ
+  // 左列だけ入力、右列は同じ値を表示
+  const sameCells = (value, input) => (
+    <>
+      {input}
+      {data.sc.slice(1).map((_, i) => (
+        <td key={i} className="same">
+          {fmt(value)}
+        </td>
+      ))}
+    </>
+  );
+
+  const section = (label) => (
+    <tr className="sec">
+      <th className="lab">{label}</th>
+      <td colSpan={cols + 1} />
+    </tr>
+  );
+
+  const sgaRows = [];
+  data.sga.forEach((it, idx) => {
+    const total = S.totals[it.key];
+    const hasDetail = it.details.length > 0;
+    sgaRows.push(
+      <tr key={`c-${it.key}`} className="cat">
+        <th className="lab">
+          <button
+            type="button"
+            className="fold"
+            aria-expanded={it.open}
+            onClick={() => setItem(idx, { open: !it.open })}
+          >
+            <span className="caret">{it.open ? "▾" : "▸"}</span>
+            {it.label}
+            {hasDetail && <span className="cnt">{it.details.length}</span>}
+          </button>
+        </th>
+        {sameCells(
+          total,
+          hasDetail ? (
+            <td className="c total">{fmt(total)}</td>
+          ) : (
+            <td>
+              <NumInput
+                label={it.label}
+                value={it.amount}
+                onChange={(v) => setItem(idx, { amount: v })}
+              />
+              <span className="u">円</span>
+            </td>
+          ),
+        )}
+        <MemoCell value={it.memo} onChange={(v) => setItem(idx, { memo: v })} />
+      </tr>,
+    );
+    if (it.open) {
+      for (const x of it.details) {
+        sgaRows.push(
+          <tr key={`d-${x.id}`} className="detail">
+            <th className="lab">
+              <div className="dname">
+                <input
+                  aria-label="明細名"
+                  placeholder="明細名"
+                  value={x.name}
+                  onChange={(e) =>
+                    setDetail(idx, x.id, { name: e.target.value })
+                  }
+                />
+                <button
+                  type="button"
+                  className="x"
+                  aria-label="明細を削除"
+                  onClick={() => removeDetail(idx, x.id)}
+                >
+                  ×
+                </button>
+              </div>
+            </th>
+            {sameCells(
+              x.amount,
+              <td>
+                <NumInput
+                  label={x.name || "明細"}
+                  value={x.amount}
+                  onChange={(v) => setDetail(idx, x.id, { amount: v })}
+                />
+                <span className="u">円</span>
+              </td>,
+            )}
+            <MemoCell
+              value={x.memo}
+              onChange={(v) => setDetail(idx, x.id, { memo: v })}
+            />
+          </tr>,
+        );
+      }
+      sgaRows.push(
+        <tr key={`a-${it.key}`} className="detail addrow">
+          <th className="lab">
+            <button
+              type="button"
+              className="addbtn"
+              onClick={() => addDetail(idx)}
+            >
+              ＋ 明細を追加
+            </button>
+          </th>
+          <td colSpan={cols + 1} />
+        </tr>,
+      );
+    }
+    if (it.key === "kyuyo") {
+      sgaRows.push(
+        <tr key="welfare" className="cat">
+          <th className="lab">
+            <span className="plain">法定福利費</span>
+          </th>
+          {sameCells(S.welfare, <td className="c">{fmt(S.welfare)}</td>)}
+          <MemoCell
+            value={data.memo.welfare}
+            onChange={(v) => setMemo("welfare", v)}
+          />
+        </tr>,
+      );
+    }
+  });
+
   const ops = results.map((r) => r.op);
   const max = Math.max(0, ...ops);
   const min = Math.min(0, ...ops);
   const span = max - min || 1;
   const zero = (-min / span) * 100;
 
-  const cols = data.sc.length;
-
   return (
     <>
       <div className="panel">
-        <h2>営業利益の比較</h2>
+        <h2>営業利益の比較（月）</h2>
         <div className="bars">
           {results.map((r, i) => {
             const w = (Math.abs(r.op) / span) * 100;
@@ -162,21 +295,10 @@ export default function Simulator({ data, onChange }) {
             );
           })}
         </div>
-        <div className="legend">
-          税引後利益が最も大きいパターンを表の上で色付けしています。
-        </div>
       </div>
 
       <div className="panel">
         <div className="ctrl">
-          <label>
-            <input
-              type="checkbox"
-              checked={data.shared}
-              onChange={(e) => toggleShared(e.target.checked)}
-            />
-            販管費を全パターン共通にする
-          </label>
           <label>
             法定福利費率
             <NumInput
@@ -214,7 +336,7 @@ export default function Simulator({ data, onChange }) {
           <thead>
             <tr>
               <th className="lab">
-                項目<small>単位：円（税抜）</small>
+                項目<small>月額・円（税抜）</small>
               </th>
               {data.sc.map((c, i) => (
                 <th key={i} className={`col ${i === best ? "best" : ""}`}>
@@ -239,105 +361,138 @@ export default function Simulator({ data, onChange }) {
                   </div>
                 </th>
               ))}
+              <th className="memo-h">備考</th>
             </tr>
           </thead>
           <tbody>
-            {ROWS.map((r, ri) => {
-              if (r.t === "sec") {
-                return (
-                  <tr key={ri} className="sec">
-                    <th className="lab">{r.l}</th>
-                    <td colSpan={cols} />
-                  </tr>
-                );
-              }
-              return (
-                <tr key={ri} className={r.b ? `b${r.b}` : ""}>
-                  <th className="lab">
-                    {r.l}
-                    {r.h && <small>{r.h}</small>}
-                  </th>
-                  {data.sc.map((c, i) => {
-                    if (r.t === "num") {
-                      return (
-                        <td key={i}>
-                          <NumInput
-                            label={r.l}
-                            value={c[r.k]}
-                            onChange={(v) => setSc(i, { [r.k]: v })}
-                          />
-                          <span className="u">{r.u}</span>
-                        </td>
-                      );
-                    }
-                    if (r.t === "rate") {
-                      return (
-                        <td key={i}>
-                          <NumInput
-                            decimal
-                            label={r.l}
-                            value={c.rate}
-                            onChange={(v) => setSc(i, { rate: v })}
-                          />
-                          <span className="u">%</span>
-                          <div className="chips">
-                            {[10, 20].map((v) => (
-                              <button
-                                type="button"
-                                key={v}
-                                className={c.rate === v ? "on" : ""}
-                                onClick={() => setSc(i, { rate: v })}
-                              >
-                                {v}%
-                              </button>
-                            ))}
-                          </div>
-                        </td>
-                      );
-                    }
-                    if (r.t === "sga") {
-                      return (
-                        <td key={i}>
-                          <NumInput
-                            label={r.l}
-                            value={c.sga[r.k]}
-                            onChange={(v) => setSga(i, r.k, v)}
-                          />
-                          <span className="u">円</span>
-                        </td>
-                      );
-                    }
-                    const v = results[i][r.k];
-                    return (
-                      <td
-                        key={i}
-                        className={`c ${typeof v === "number" && v < 0 ? "neg" : ""}`}
+            {section("前提条件")}
+            <tr>
+              <th className="lab">本体価格（1台）</th>
+              {data.sc.map((c, i) => (
+                <td key={i}>
+                  <NumInput
+                    label="本体価格"
+                    value={c.price}
+                    onChange={(v) => setSc(i, { price: v })}
+                  />
+                  <span className="u">円</span>
+                </td>
+              ))}
+              <MemoCell
+                value={data.memo.price}
+                onChange={(v) => setMemo("price", v)}
+              />
+            </tr>
+            <tr>
+              <th className="lab">月間台数</th>
+              {data.sc.map((c, i) => (
+                <td key={i}>
+                  <NumInput
+                    label="月間台数"
+                    value={c.units}
+                    onChange={(v) => setSc(i, { units: v })}
+                  />
+                  <span className="u">台</span>
+                </td>
+              ))}
+              <MemoCell
+                value={data.memo.units}
+                onChange={(v) => setMemo("units", v)}
+              />
+            </tr>
+            <tr>
+              <th className="lab">代行手数料率</th>
+              {data.sc.map((c, i) => (
+                <td key={i}>
+                  <NumInput
+                    decimal
+                    label="代行手数料率"
+                    value={c.rate}
+                    onChange={(v) => setSc(i, { rate: v })}
+                  />
+                  <span className="u">%</span>
+                  <div className="chips">
+                    {[10, 20].map((v) => (
+                      <button
+                        type="button"
+                        key={v}
+                        className={c.rate === v ? "on" : ""}
+                        onClick={() => setSc(i, { rate: v })}
                       >
-                        {showCalc(r.k, v)}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
+                        {v}%
+                      </button>
+                    ))}
+                  </div>
+                </td>
+              ))}
+              <MemoCell
+                value={data.memo.rate}
+                onChange={(v) => setMemo("rate", v)}
+              />
+            </tr>
+
+            {section("売上")}
+            <tr className="b1">
+              <th className="lab">売上高（代行手数料）</th>
+              {results.map((r, i) => (
+                <td key={i} className="c">
+                  {fmt(r.sales)}
+                </td>
+              ))}
+              <MemoCell
+                value={data.memo.sales}
+                onChange={(v) => setMemo("sales", v)}
+              />
+            </tr>
+
+            {section("販売費及び一般管理費")}
+            {sgaRows}
+            <tr className="b1">
+              <th className="lab">販管費合計</th>
+              {data.sc.map((_, i) => (
+                <td key={i} className="c">
+                  {fmt(S.sgaT)}
+                </td>
+              ))}
+              <MemoCell
+                value={data.memo.sgaT}
+                onChange={(v) => setMemo("sgaT", v)}
+              />
+            </tr>
+
+            {section("利益")}
+            {PROFIT_ROWS.map((r) => (
+              <tr key={r.k} className={r.b ? `b${r.b}` : ""}>
+                <th className="lab">{r.l}</th>
+                {results.map((x, i) => (
+                  <td key={i} className={`c ${x[r.k] < 0 ? "neg" : ""}`}>
+                    {showCalc(r.k, x[r.k])}
+                  </td>
+                ))}
+                <MemoCell
+                  value={data.memo[r.k]}
+                  onChange={(v) => setMemo(r.k, v)}
+                />
+              </tr>
+            ))}
+
+            {section("指標")}
+            {INDEX_ROWS.map((r) => (
+              <tr key={r.k}>
+                <th className="lab">{r.l}</th>
+                {results.map((x, i) => (
+                  <td key={i} className={`c ${x[r.k] < 0 ? "neg" : ""}`}>
+                    {showCalc(r.k, x[r.k])}
+                  </td>
+                ))}
+                <MemoCell
+                  value={data.memo[r.k]}
+                  onChange={(v) => setMemo(r.k, v)}
+                />
+              </tr>
+            ))}
           </tbody>
         </table>
-      </div>
-
-      <div className="notes">
-        <p>
-          売上高 ＝ 本体価格 × 総台数 ×
-          手数料率（仕入れ代行手数料のみを売上計上。本体代金は預り・立替扱い）
-        </p>
-        <p>
-          売上原価 ＝ 1台あたり直接原価 ×
-          総台数（陸送・検査・書類など台数に比例する経費）
-        </p>
-        <p>
-          法定福利費 ＝（役員報酬＋給料手当）× 法定福利費率／損益分岐台数 ＝
-          販管費合計 ÷（1台あたり手数料 − 1台あたり直接原価）
-        </p>
-        <p>法人税等は営業利益に実効税率を掛けた概算です。</p>
       </div>
     </>
   );

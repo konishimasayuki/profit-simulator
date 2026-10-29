@@ -225,12 +225,7 @@ export default function App() {
   return (
     <div className="wrap">
       <header className="head">
-        <div>
-          <h1>仕入れ代行 利益シミュレーター</h1>
-          <p className="sub">
-            手数料率ごとの年間損益を横に並べて比較します。金額はすべて税抜・円。
-          </p>
-        </div>
+        <h1>仕入れ代行 利益シミュレーター</h1>
         <span className={`status ${status}`}>{STATUS_TEXT[status]}</span>
       </header>
 

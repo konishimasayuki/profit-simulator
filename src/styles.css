@@ -56,6 +56,7 @@ body {
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
+  margin-bottom: 14px;
 }
 h1 {
   font-size: 20px;
@@ -346,16 +347,87 @@ tr.b2 > * {
 .neg {
   color: var(--neg);
 }
-.notes {
-  font-size: 12px;
+.same {
   color: var(--muted);
-  margin-top: 14px;
-  line-height: 1.75;
 }
-.notes p {
-  margin: 0 0 4px;
+td.total {
+  font-weight: 700;
 }
-
+.fold {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+}
+.caret {
+  display: inline-block;
+  width: 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.plain {
+  padding-left: 18px;
+}
+.cnt {
+  font-size: 10.5px;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: 9px;
+  padding: 0 6px;
+  line-height: 16px;
+}
+tr.detail > * {
+  background: var(--calc);
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.dname {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 18px;
+}
+.dname input {
+  width: 100%;
+  min-width: 0;
+  font-size: 15px;
+  padding: 3px 6px;
+}
+.x {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 16px;
+  padding: 0 4px;
+}
+.addbtn {
+  background: none;
+  border: 0;
+  color: var(--ink);
+  font-size: 12.5px;
+  padding: 2px 0 2px 18px;
+}
+th.memo-h {
+  min-width: 220px;
+  text-align: left;
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 12px;
+}
+td.memo {
+  text-align: left;
+  min-width: 220px;
+}
+.memo-in {
+  width: 100%;
+  min-width: 200px;
+  font-size: 15px;
+  padding: 3px 6px;
+}
 @media (max-width: 640px) {
   th.lab {
     min-width: 118px;
@@ -374,5 +446,12 @@ tr.b2 > * {
   .bars .row {
     grid-template-columns: 84px 1fr auto;
     gap: 8px;
+  }
+  th.memo-h,
+  td.memo {
+    min-width: 170px;
+  }
+  .memo-in {
+    min-width: 150px;
   }
 }
