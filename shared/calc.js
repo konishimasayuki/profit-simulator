@@ -5,12 +5,22 @@ export const VERSION = 2;
 export const SGA_DEFAULTS = [
   ["yakuin", "役員報酬", 400000],
   ["kyuyo", "給料手当", 300000],
-  ["chidai", "地代家賃", 100000],
+  ["fukuri", "福利厚生費", 5000],
+  ["gaichu", "外注費", 0],
+  ["nizukuri", "荷造運賃", 0],
   ["koukoku", "広告宣伝費", 50000],
+  ["kousai", "交際費", 20000],
   ["ryohi", "旅費交通費", 50000],
   ["tsushin", "通信費", 20000],
-  ["shiharai", "支払手数料", 25000],
+  ["suido", "水道光熱費", 10000],
   ["shomo", "消耗品費", 10000],
+  ["shokai", "諸会費", 5000],
+  ["sharyo", "車両費", 30000],
+  ["chidai", "地代家賃", 100000],
+  ["lease", "リース料", 0],
+  ["hoken", "保険料", 10000],
+  ["sozei", "租税公課", 5000],
+  ["shiharai", "支払手数料", 25000],
   ["genka", "減価償却費", 0],
   ["zappi", "雑費", 15000],
 ];
@@ -57,6 +67,16 @@ export function defaultData() {
   };
 }
 
+// 保存済みデータに新しい既定項目が無ければ既定の並び順で補う
+function mergeSga(list) {
+  const byKey = new Map(list.map((it) => [it.key, it]));
+  const defaults = defaultSga();
+  const merged = defaults.map((def) => byKey.get(def.key) || def);
+  const known = new Set(defaults.map((def) => def.key));
+  for (const it of list) if (!known.has(it.key)) merged.push(it);
+  return merged;
+}
+
 export function normalize(d) {
   if (
     !d ||
@@ -76,7 +96,7 @@ export function normalize(d) {
     welfare: num(d.welfare),
     tax: num(d.tax),
     memo,
-    sga: d.sga.map((it) => ({
+    sga: mergeSga(d.sga).map((it) => ({
       key: str(it.key, 40) || uid(),
       label: str(it.label, 60),
       amount: num(it.amount),
