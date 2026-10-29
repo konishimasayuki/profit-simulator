@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { defaultData, normalize } from "../shared/calc.js";
+import { KINDS, MODELS, defaultData, normalize } from "../shared/calc.js";
 import Simulator from "./Simulator.jsx";
 import {
   createSim,
@@ -42,6 +42,7 @@ export default function App() {
   const [cur, setCur] = useState(null);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
+  const [kind, setKind] = useState(KINDS[0]);
   const timer = useRef(null);
   const pending = useRef(null);
 
@@ -203,7 +204,7 @@ export default function App() {
     return (
       <div className="wrap">
         <div className="panel pass">
-          <h1>仕入れ代行 利益シミュレーター</h1>
+          <h1>利益シミュレーター</h1>
           <p className="sub">パスコードを入力してください。</p>
           <div className="ctrl">
             <input
@@ -225,9 +226,24 @@ export default function App() {
   return (
     <div className="wrap">
       <header className="head">
-        <h1>仕入れ代行 利益シミュレーター</h1>
+        <h1>利益シミュレーター</h1>
         <span className={`status ${status}`}>{STATUS_TEXT[status]}</span>
       </header>
+
+      <div className="tabs" role="tablist">
+        {KINDS.map((k) => (
+          <button
+            key={k}
+            type="button"
+            role="tab"
+            aria-selected={kind === k}
+            className={kind === k ? "on" : ""}
+            onClick={() => setKind(k)}
+          >
+            {MODELS[k].label}
+          </button>
+        ))}
+      </div>
 
       <div className="panel">
         <div className="ctrl">
@@ -267,7 +283,13 @@ export default function App() {
       </div>
 
       {cur ? (
-        <Simulator data={cur.data} onChange={onData} title={cur.name} />
+        <Simulator
+          key={kind}
+          kind={kind}
+          data={cur.data[kind]}
+          onChange={(d) => onData({ ...cur.data, [kind]: d })}
+          title={`${cur.name}（${MODELS[kind].label}）`}
+        />
       ) : (
         <div className="panel">
           {status === "loading"

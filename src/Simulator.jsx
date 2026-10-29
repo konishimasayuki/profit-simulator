@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  calc,
-  defaultData,
+  MODELS,
+  calcModel,
+  defaultModel,
   fmt,
   num,
   sgaSummary,
@@ -59,13 +60,16 @@ function showCalc(k, v) {
   return fmt(v);
 }
 
-export default function Simulator({ data, onChange, title }) {
+const showVal = (v, r) => (r.dec ? String(v) : fmt(v));
+
+export default function Simulator({ kind, data, onChange, title }) {
+  const model = MODELS[kind];
   const [exporting, setExporting] = useState(false);
   const sheetRef = useRef(null);
   const S = useMemo(() => sgaSummary(data), [data]);
   const results = useMemo(
-    () => data.sc.map((c) => calc(c, data, S)),
-    [data, S],
+    () => data.sc.map((c) => calcModel(kind, c, data, S)),
+    [kind, data, S],
   );
   const cols = data.sc.length;
 
@@ -116,28 +120,90 @@ export default function Simulator({ data, onChange, title }) {
     onChange({ ...data, sc: [...data.sc, c] });
   };
   const reset = () => {
-    if (window.confirm("このシミュレーションを初期値に戻しますか？"))
-      onChange(defaultData());
+    if (window.confirm(`${model.label}を初期値に戻しますか？`))
+      onChange(defaultModel(kind));
   };
 
+  useEffect(() => {
+    if (!exporting) return;
+    let alive = true;
+    const run = async () => {
+      try {
+        await exportPdf(sheetRef.current, title);
+      } catch {
+        window.alert("PDFの作成に失敗しました");
+      } finally {
+        if (alive) setExporting(false);
+      }
+    };
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [exporting, title]);
+
   // 左列だけ入力、右列は同じ値を表示
-  const sameCells = (value, input) => (
+  const sameCells = (text, input) => (
     <>
       {input}
       {data.sc.slice(1).map((_, i) => (
         <td key={i} className="same">
-          {fmt(value)}
+          {text}
         </td>
       ))}
     </>
   );
 
-  const section = (label) => (
-    <tr className="sec">
+  const section = (label, key) => (
+    <tr key={key} className="sec">
       <th className="lab">{label}</th>
       <td colSpan={cols + 1} />
     </tr>
   );
+
+  const topRows = model.rows.map((r, ri) => {
+    if (r.sec) return section(r.sec, `s${ri}`);
+    let cells;
+    if (r.t === "shared") {
+      cells = sameCells(
+        showVal(data[r.k], r),
+        <td>
+          <NumInput
+            decimal={r.dec}
+            label={r.l}
+            value={data[r.k]}
+            onChange={(v) => onChange({ ...data, [r.k]: v })}
+          />
+          <span className="u">{r.u}</span>
+        </td>,
+      );
+    } else if (r.t === "each") {
+      cells = data.sc.map((c, i) => (
+        <td key={i}>
+          <NumInput
+            decimal={r.dec}
+            label={r.l}
+            value={c[r.k]}
+            onChange={(v) => setSc(i, { [r.k]: v })}
+          />
+          <span className="u">{r.u}</span>
+        </td>
+      ));
+    } else {
+      cells = results.map((x, i) => (
+        <td key={i} className={`c ${x[r.k] < 0 ? "neg" : ""}`}>
+          {fmt(x[r.k])}
+        </td>
+      ));
+    }
+    return (
+      <tr key={r.k} className={r.b ? `b${r.b}` : ""}>
+        <th className="lab">{r.l}</th>
+        {cells}
+        <MemoCell value={data.memo[r.k]} onChange={(v) => setMemo(r.k, v)} />
+      </tr>
+    );
+  });
 
   const sgaRows = [];
   data.sga.forEach((it, idx) => {
@@ -158,7 +224,7 @@ export default function Simulator({ data, onChange, title }) {
           </button>
         </th>
         {sameCells(
-          total,
+          fmt(total),
           hasDetail ? (
             <td className="c total">{fmt(total)}</td>
           ) : (
@@ -200,7 +266,7 @@ export default function Simulator({ data, onChange, title }) {
               </div>
             </th>
             {sameCells(
-              x.amount,
+              fmt(x.amount),
               <td>
                 <NumInput
                   label={x.name || "明細"}
@@ -238,7 +304,7 @@ export default function Simulator({ data, onChange, title }) {
           <th className="lab">
             <span className="plain">法定福利費</span>
           </th>
-          {sameCells(S.welfare, <td className="c">{fmt(S.welfare)}</td>)}
+          {sameCells(fmt(S.welfare), <td className="c">{fmt(S.welfare)}</td>)}
           <MemoCell
             value={data.memo.welfare}
             onChange={(v) => setMemo("welfare", v)}
@@ -247,35 +313,6 @@ export default function Simulator({ data, onChange, title }) {
       );
     }
   });
-
-  useEffect(() => {
-    if (!exporting) return;
-    let alive = true;
-    const run = async () => {
-      try {
-        await exportPdf(sheetRef.current, title);
-      } catch {
-        window.alert("PDFの作成に失敗しました");
-      } finally {
-        if (alive) setExporting(false);
-      }
-    };
-    run();
-    return () => {
-      alive = false;
-    };
-  }, [exporting, title]);
-
-  const priceInput = (
-    <td>
-      <NumInput
-        label="本体価格"
-        value={data.price}
-        onChange={(v) => onChange({ ...data, price: v })}
-      />
-      <span className="u">円</span>
-    </td>
-  );
 
   return (
     <>
@@ -330,96 +367,9 @@ export default function Simulator({ data, onChange, title }) {
             </tr>
           </thead>
           <tbody>
-            {section("前提条件")}
-            <tr>
-              <th className="lab">本体価格（1台）</th>
-              {sameCells(data.price, priceInput)}
-              <MemoCell
-                value={data.memo.price}
-                onChange={(v) => setMemo("price", v)}
-              />
-            </tr>
-            <tr>
-              <th className="lab">月間台数</th>
-              {data.sc.map((c, i) => (
-                <td key={i}>
-                  <NumInput
-                    label="月間台数"
-                    value={c.units}
-                    onChange={(v) => setSc(i, { units: v })}
-                  />
-                  <span className="u">台</span>
-                </td>
-              ))}
-              <MemoCell
-                value={data.memo.units}
-                onChange={(v) => setMemo("units", v)}
-              />
-            </tr>
-            <tr>
-              <th className="lab">代行手数料率</th>
-              {data.sc.map((c, i) => (
-                <td key={i}>
-                  <NumInput
-                    decimal
-                    label="代行手数料率"
-                    value={c.rate}
-                    onChange={(v) => setSc(i, { rate: v })}
-                  />
-                  <span className="u">%</span>
-                </td>
-              ))}
-              <MemoCell
-                value={data.memo.rate}
-                onChange={(v) => setMemo("rate", v)}
-              />
-            </tr>
+            {topRows}
 
-            {section("売上")}
-            <tr className="b1">
-              <th className="lab">売上高（代行手数料）</th>
-              {results.map((r, i) => (
-                <td key={i} className="c">
-                  {fmt(r.sales)}
-                </td>
-              ))}
-              <MemoCell
-                value={data.memo.sales}
-                onChange={(v) => setMemo("sales", v)}
-              />
-            </tr>
-            <tr>
-              <th className="lab">整備粗利</th>
-              {sameCells(
-                data.seibi,
-                <td>
-                  <NumInput
-                    label="整備粗利"
-                    value={data.seibi}
-                    onChange={(v) => onChange({ ...data, seibi: v })}
-                  />
-                  <span className="u">円</span>
-                </td>,
-              )}
-              <MemoCell
-                value={data.memo.seibi}
-                onChange={(v) => setMemo("seibi", v)}
-              />
-            </tr>
-            <tr className="b1">
-              <th className="lab">売上総利益</th>
-              {results.map((r, i) => (
-                <td key={i} className="c">
-                  {fmt(r.gross)}
-                </td>
-              ))}
-              <MemoCell
-                value={data.memo.gross}
-                onChange={(v) => setMemo("gross", v)}
-              />
-            </tr>
-
-            {section("販売費及び一般管理費")}
+            {section("販売費及び一般管理費", "sga")}
             {sgaRows}
             <tr className="b1">
               <th className="lab">販管費合計</th>
@@ -434,7 +384,7 @@ export default function Simulator({ data, onChange, title }) {
               />
             </tr>
 
-            {section("利益")}
+            {section("利益", "profit")}
             {PROFIT_ROWS.map((r) => (
               <tr key={r.k} className={r.b ? `b${r.b}` : ""}>
                 <th className="lab">{r.l}</th>
@@ -457,7 +407,7 @@ export default function Simulator({ data, onChange, title }) {
         <PdfSheet
           title={title}
           data={data}
-          rows={buildRows(data, S, results)}
+          rows={buildRows(kind, data, S, results)}
           sheetRef={sheetRef}
         />
       )}

@@ -1,53 +1,58 @@
-import { fmt } from "../shared/calc.js";
+import { MODELS, fmt } from "../shared/calc.js";
 
 // PDF用の行データ（販管費は0円の科目を省略）
-export function buildRows(data, S, results) {
-  const same = (v) => data.sc.map(() => fmt(v));
+export function buildRows(kind, data, S, results) {
+  const same = (v) => data.sc.map(() => v);
+  const unit = (v, r) => {
+    if (r.u === "台") return `${fmt(v)}台`;
+    if (r.u === "%") return `${v}%`;
+    return fmt(v);
+  };
   const rows = [];
-  rows.push({ sec: "前提条件" });
-  rows.push({ l: "本体価格（1台）", v: same(data.price), m: data.memo.price });
-  rows.push({
-    l: "月間台数",
-    v: data.sc.map((c) => `${fmt(c.units)}台`),
-    m: data.memo.units,
-  });
-  rows.push({
-    l: "代行手数料率",
-    v: data.sc.map((c) => `${c.rate}%`),
-    m: data.memo.rate,
-  });
-  rows.push({ sec: "売上" });
-  rows.push({
-    l: "売上高（代行手数料）",
-    v: results.map((r) => fmt(r.sales)),
-    m: data.memo.sales,
-    b: 1,
-  });
-  rows.push({
-    l: "整備粗利",
-    v: results.map((r) => fmt(r.seibi)),
-    m: data.memo.seibi,
-  });
-  rows.push({
-    l: "売上総利益",
-    v: results.map((r) => fmt(r.gross)),
-    m: data.memo.gross,
-    b: 1,
-  });
+  for (const r of MODELS[kind].rows) {
+    if (r.sec) {
+      rows.push({ sec: r.sec });
+    } else if (r.t === "shared") {
+      rows.push({ l: r.l, v: same(unit(data[r.k], r)), m: data.memo[r.k] });
+    } else if (r.t === "each") {
+      rows.push({
+        l: r.l,
+        v: data.sc.map((c) => unit(c[r.k], r)),
+        m: data.memo[r.k],
+      });
+    } else {
+      rows.push({
+        l: r.l,
+        v: results.map((x) => fmt(x[r.k])),
+        n: results.map((x) => x[r.k] < 0),
+        m: data.memo[r.k],
+        b: r.b,
+      });
+    }
+  }
   rows.push({ sec: "販売費及び一般管理費" });
   for (const it of data.sga) {
     const total = S.totals[it.key];
     if (total !== 0 || it.details.length) {
-      rows.push({ l: it.label, v: same(total), m: it.memo });
+      rows.push({ l: it.label, v: same(fmt(total)), m: it.memo });
       for (const x of it.details) {
-        rows.push({ l: x.name || "明細", v: same(x.amount), m: x.memo, d: 1 });
+        rows.push({
+          l: x.name || "明細",
+          v: same(fmt(x.amount)),
+          m: x.memo,
+          d: 1,
+        });
       }
     }
     if (it.key === "kyuyo" && S.welfare !== 0) {
-      rows.push({ l: "法定福利費", v: same(S.welfare), m: data.memo.welfare });
+      rows.push({
+        l: "法定福利費",
+        v: same(fmt(S.welfare)),
+        m: data.memo.welfare,
+      });
     }
   }
-  rows.push({ l: "販管費合計", v: same(S.sgaT), m: data.memo.sgaT, b: 1 });
+  rows.push({ l: "販管費合計", v: same(fmt(S.sgaT)), m: data.memo.sgaT, b: 1 });
   rows.push({ sec: "利益" });
   const val = (k, f) => ({
     v: results.map((r) => f(r[k])),
