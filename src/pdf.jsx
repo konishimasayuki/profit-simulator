@@ -1,7 +1,7 @@
 import { MODELS, fmt } from "../shared/calc.js";
 
 // PDF用の行データ（販管費は0円の科目を省略）
-export function buildRows(kind, data, S, results) {
+export function buildRows(kind, data, SL, results) {
   const same = (v) => data.sc.map(() => v);
   const unit = (v, r) => {
     if (r.u === "台") return `${fmt(v)}台`;
@@ -31,28 +31,34 @@ export function buildRows(kind, data, S, results) {
     }
   }
   rows.push({ sec: "販売費及び一般管理費" });
+  const cols = (f) => SL.map((x) => fmt(f(x)));
   for (const it of data.sga) {
-    const total = S.totals[it.key];
-    if (total !== 0 || it.details.length) {
-      rows.push({ l: it.label, v: same(fmt(total)), m: it.memo });
-      for (const x of it.details) {
+    const anyValue = SL.some((x) => x.totals[it.key] !== 0);
+    if (anyValue || it.details.length) {
+      rows.push({ l: it.label, v: cols((x) => x.totals[it.key]), m: it.memo });
+      for (const d of it.details) {
         rows.push({
-          l: x.name || "明細",
-          v: same(fmt(x.amount)),
-          m: x.memo,
+          l: d.name || "明細",
+          v: cols((x) => x.vals[d.id]),
+          m: d.memo,
           d: 1,
         });
       }
     }
-    if (it.key === "kyuyo" && S.welfare !== 0) {
+    if (it.key === "kyuyo" && SL.some((x) => x.welfare !== 0)) {
       rows.push({
         l: "法定福利費",
-        v: same(fmt(S.welfare)),
+        v: cols((x) => x.welfare),
         m: data.memo.welfare,
       });
     }
   }
-  rows.push({ l: "販管費合計", v: same(fmt(S.sgaT)), m: data.memo.sgaT, b: 1 });
+  rows.push({
+    l: "販管費合計",
+    v: cols((x) => x.sgaT),
+    m: data.memo.sgaT,
+    b: 1,
+  });
   rows.push({ sec: "利益" });
   const val = (k, f) => ({
     v: results.map((r) => f(r[k])),

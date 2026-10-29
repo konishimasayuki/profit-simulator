@@ -5,6 +5,7 @@ import {
   defaultModel,
   fmt,
   num,
+  sgaSummaries,
   sgaSummary,
   uid,
 } from "../shared/calc.js";
@@ -66,10 +67,11 @@ export default function Simulator({ kind, data, onChange, title }) {
   const model = MODELS[kind];
   const [exporting, setExporting] = useState(false);
   const sheetRef = useRef(null);
-  const S = useMemo(() => sgaSummary(data), [data]);
+  const perCol = !!model.sgaPerCol;
+  const SL = useMemo(() => sgaSummaries(kind, data), [kind, data]);
   const results = useMemo(
-    () => data.sc.map((c) => calcModel(kind, c, data, S)),
-    [kind, data, S],
+    () => data.sc.map((c, i) => calcModel(kind, c, data, SL[i])),
+    [kind, data, SL],
   );
   const cols = data.sc.length;
 
@@ -113,7 +115,26 @@ export default function Simulator({ kind, data, onChange, title }) {
   };
   const del = (i) => {
     if (cols < 2) return;
-    onChange({ ...data, sc: data.sc.filter((_, j) => j !== i) });
+    let sga = data.sga;
+    let sc = data.sc.filter((_, j) => j !== i);
+    if (perCol && i === 0) {
+      // 新しい左列の販管費を項目の金額に引き継ぐ
+      const next = sgaSummary(data, data.sc[1], 1, true);
+      sga = data.sga.map((it) =>
+        it.details.length
+          ? {
+              ...it,
+              details: it.details.map((x) => ({
+                ...x,
+                amount: next.vals[x.id],
+              })),
+            }
+          : { ...it, amount: next.totals[it.key] },
+      );
+      const { sgaAmt, ...first } = sc[0];
+      sc = [first, ...sc.slice(1)];
+    }
+    onChange({ ...data, sga, sc });
   };
   const add = () => {
     const c = { ...data.sc[cols - 1], name: `パターン${cols + 1}` };
@@ -205,10 +226,56 @@ export default function Simulator({ kind, data, onChange, title }) {
     );
   });
 
+  // 右列の販管費を上書き（オートリンク）
+  const setColSga = (i, id, v) =>
+    setSc(i, { sgaAmt: { ...(data.sc[i].sgaAmt || {}), [id]: v } });
+
+  // 販管費の1行分のセル。perColなら全列入力、そうでなければ左列だけ入力
+  const sgaCells = (id, leftAmount, setLeft, label, colValue) => {
+    if (!perCol) {
+      return sameCells(
+        fmt(leftAmount),
+        <td>
+          <NumInput label={label} value={leftAmount} onChange={setLeft} />
+          <span className="u">円</span>
+        </td>,
+      );
+    }
+    return data.sc.map((c, i) => {
+      const follow = i > 0 && c.sgaAmt?.[id] == null;
+      return (
+        <td key={i}>
+          <NumInput
+            className={follow ? "n follow" : "n"}
+            label={label}
+            value={colValue(i)}
+            onChange={(v) => (i === 0 ? setLeft(v) : setColSga(i, id, v))}
+          />
+          <span className="u">円</span>
+        </td>
+      );
+    });
+  };
+
   const sgaRows = [];
   data.sga.forEach((it, idx) => {
-    const total = S.totals[it.key];
     const hasDetail = it.details.length > 0;
+    let cells;
+    if (hasDetail) {
+      cells = SL.map((s, i) => (
+        <td key={i} className={i === 0 || perCol ? "c total" : "same"}>
+          {fmt(s.totals[it.key])}
+        </td>
+      ));
+    } else {
+      cells = sgaCells(
+        it.key,
+        it.amount,
+        (v) => setItem(idx, { amount: v }),
+        it.label,
+        (i) => SL[i].totals[it.key],
+      );
+    }
     sgaRows.push(
       <tr key={`c-${it.key}`} className="cat">
         <th className="lab">
@@ -223,21 +290,7 @@ export default function Simulator({ kind, data, onChange, title }) {
             {hasDetail && <span className="cnt">{it.details.length}</span>}
           </button>
         </th>
-        {sameCells(
-          fmt(total),
-          hasDetail ? (
-            <td className="c total">{fmt(total)}</td>
-          ) : (
-            <td>
-              <NumInput
-                label={it.label}
-                value={it.amount}
-                onChange={(v) => setItem(idx, { amount: v })}
-              />
-              <span className="u">円</span>
-            </td>
-          ),
-        )}
+        {cells}
         <MemoCell value={it.memo} onChange={(v) => setItem(idx, { memo: v })} />
       </tr>,
     );
@@ -265,16 +318,12 @@ export default function Simulator({ kind, data, onChange, title }) {
                 </button>
               </div>
             </th>
-            {sameCells(
-              fmt(x.amount),
-              <td>
-                <NumInput
-                  label={x.name || "明細"}
-                  value={x.amount}
-                  onChange={(v) => setDetail(idx, x.id, { amount: v })}
-                />
-                <span className="u">円</span>
-              </td>,
+            {sgaCells(
+              x.id,
+              x.amount,
+              (v) => setDetail(idx, x.id, { amount: v }),
+              x.name || "明細",
+              (i) => SL[i].vals[x.id],
             )}
             <MemoCell
               value={x.memo}
@@ -304,7 +353,11 @@ export default function Simulator({ kind, data, onChange, title }) {
           <th className="lab">
             <span className="plain">法定福利費</span>
           </th>
-          {sameCells(fmt(S.welfare), <td className="c">{fmt(S.welfare)}</td>)}
+          {SL.map((s, i) => (
+            <td key={i} className={i === 0 || perCol ? "c" : "same"}>
+              {fmt(s.welfare)}
+            </td>
+          ))}
           <MemoCell
             value={data.memo.welfare}
             onChange={(v) => setMemo("welfare", v)}
@@ -373,9 +426,9 @@ export default function Simulator({ kind, data, onChange, title }) {
             {sgaRows}
             <tr className="b1">
               <th className="lab">販管費合計</th>
-              {data.sc.map((_, i) => (
+              {SL.map((x, i) => (
                 <td key={i} className="c">
-                  {fmt(S.sgaT)}
+                  {fmt(x.sgaT)}
                 </td>
               ))}
               <MemoCell
@@ -407,7 +460,7 @@ export default function Simulator({ kind, data, onChange, title }) {
         <PdfSheet
           title={title}
           data={data}
-          rows={buildRows(kind, data, S, results)}
+          rows={buildRows(kind, data, SL, results)}
           sheetRef={sheetRef}
         />
       )}

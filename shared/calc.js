@@ -63,18 +63,41 @@ export function itemTotal(it) {
     : num(it.amount);
 }
 
-// 販管費は全パターン共通
-export function sgaSummary(d) {
+// 列ごとの販管費の値。左列（idx=0）は項目の金額、右列は上書きがあればその値、なければ左列と同じ
+export function sgaValue(c, idx, id, leftAmount, perCol) {
+  if (!perCol || idx === 0 || !c?.sgaAmt) return num(leftAmount);
+  const v = c.sgaAmt[id];
+  return v == null ? num(leftAmount) : num(v);
+}
+
+export function sgaSummary(d, c = null, idx = 0, perCol = false) {
   const totals = {};
+  const vals = {};
   let sum = 0;
   for (const it of d.sga) {
-    const t = itemTotal(it);
+    let t;
+    if (it.details.length) {
+      t = 0;
+      for (const x of it.details) {
+        const v = sgaValue(c, idx, x.id, x.amount, perCol);
+        vals[x.id] = v;
+        t += v;
+      }
+    } else {
+      t = sgaValue(c, idx, it.key, it.amount, perCol);
+    }
     totals[it.key] = t;
     sum += t;
   }
   const welfare =
     (((totals.yakuin || 0) + (totals.kyuyo || 0)) * d.welfare) / 100;
-  return { totals, welfare, sgaT: sum + welfare };
+  return { totals, vals, welfare, sgaT: sum + welfare };
+}
+
+// 列ごとの販管費集計
+export function sgaSummaries(kind, d) {
+  const perCol = !!MODELS[kind].sgaPerCol;
+  return d.sc.map((c, i) => sgaSummary(d, c, i, perCol));
 }
 
 function common(op, gross, sales, d, bep) {
@@ -148,6 +171,7 @@ export const MODELS = {
   },
   autolink: {
     label: "オートリンク",
+    sgaPerCol: true,
     shared: { price: 2000000, fee: 20 },
     each: { units: 5, margin: 15 },
     scenarios: [
@@ -226,6 +250,12 @@ export function normalizeModel(kind, d) {
   out.sc = d.sc.map((c, i) => {
     const sc = { name: str(c.name, 60) || `パターン${i + 1}` };
     for (const [k, def] of Object.entries(m.each)) sc[k] = num(c[k] ?? def);
+    if (m.sgaPerCol && c.sgaAmt && typeof c.sgaAmt === "object") {
+      sc.sgaAmt = {};
+      for (const [k, v] of Object.entries(c.sgaAmt)) {
+        if (v != null) sc.sgaAmt[str(k, 40)] = num(v);
+      }
+    }
     return sc;
   });
   return out;
@@ -243,6 +273,6 @@ export function normalize(d) {
   return out;
 }
 
-export function calcModel(kind, c, d, s = sgaSummary(d)) {
+export function calcModel(kind, c, d, s) {
   return MODELS[kind].calc(c, d, s);
 }

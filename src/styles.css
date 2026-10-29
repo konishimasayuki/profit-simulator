@@ -572,3 +572,7 @@ td.memo {
   color: var(--ink);
   border-bottom-color: var(--ink);
 }
+
+td input.n.follow {
+  color: var(--muted);
+}
