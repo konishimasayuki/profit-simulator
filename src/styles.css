@@ -455,3 +455,7 @@ td.memo {
     min-width: 150px;
   }
 }
+
+.panel.foot {
+  margin-top: 14px;
+}

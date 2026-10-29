@@ -70,19 +70,6 @@ export default function Simulator({ data, onChange }) {
   );
   const cols = data.sc.length;
 
-  const best = useMemo(() => {
-    if (cols < 2) return -1;
-    let bi = -1;
-    let bv = Number.NEGATIVE_INFINITY;
-    results.forEach((r, i) => {
-      if (r.net > bv) {
-        bv = r.net;
-        bi = i;
-      }
-    });
-    return bi;
-  }, [results, cols]);
-
   const setSc = (i, patch) =>
     onChange({
       ...data,
@@ -262,65 +249,21 @@ export default function Simulator({ data, onChange }) {
     }
   });
 
-  const ops = results.map((r) => r.op);
-  const max = Math.max(0, ...ops);
-  const min = Math.min(0, ...ops);
-  const span = max - min || 1;
-  const zero = (-min / span) * 100;
+  const priceInput = (
+    <td>
+      <NumInput
+        label="本体価格"
+        value={data.price}
+        onChange={(v) => onChange({ ...data, price: v })}
+      />
+      <span className="u">円</span>
+    </td>
+  );
 
   return (
     <>
       <div className="panel">
-        <h2>営業利益の比較（月）</h2>
-        <div className="bars">
-          {results.map((r, i) => {
-            const w = (Math.abs(r.op) / span) * 100;
-            const left = r.op >= 0 ? zero : zero - w;
-            return (
-              <div className="row" key={i}>
-                <div className="nm">{data.sc[i].name}</div>
-                <div className="track">
-                  {min < 0 && (
-                    <div className="zero" style={{ left: `${zero}%` }} />
-                  )}
-                  <div
-                    className={`bar ${r.op < 0 ? "neg" : ""}`}
-                    style={{ left: `${left}%`, width: `${w}%` }}
-                  />
-                </div>
-                <div className={`val ${r.op < 0 ? "neg" : ""}`}>
-                  {fmt(r.op)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="panel">
         <div className="ctrl">
-          <label>
-            法定福利費率
-            <NumInput
-              className="small"
-              decimal
-              label="法定福利費率"
-              value={data.welfare}
-              onChange={(v) => onChange({ ...data, welfare: v })}
-            />
-            %
-          </label>
-          <label>
-            法人税等の実効税率
-            <NumInput
-              className="small"
-              decimal
-              label="実効税率"
-              value={data.tax}
-              onChange={(v) => onChange({ ...data, tax: v })}
-            />
-            %
-          </label>
           <span className="sp" />
           <button type="button" className="btn ghost" onClick={reset}>
             初期値に戻す
@@ -339,10 +282,7 @@ export default function Simulator({ data, onChange }) {
                 項目<small>月額・円（税抜）</small>
               </th>
               {data.sc.map((c, i) => (
-                <th key={i} className={`col ${i === best ? "best" : ""}`}>
-                  <span className="tag">
-                    {i === best ? "最も利益が大きい" : ""}
-                  </span>
+                <th key={i} className="col">
                   <input
                     className="nm"
                     aria-label="パターン名"
@@ -368,16 +308,7 @@ export default function Simulator({ data, onChange }) {
             {section("前提条件")}
             <tr>
               <th className="lab">本体価格（1台）</th>
-              {data.sc.map((c, i) => (
-                <td key={i}>
-                  <NumInput
-                    label="本体価格"
-                    value={c.price}
-                    onChange={(v) => setSc(i, { price: v })}
-                  />
-                  <span className="u">円</span>
-                </td>
-              ))}
+              {sameCells(data.price, priceInput)}
               <MemoCell
                 value={data.memo.price}
                 onChange={(v) => setMemo("price", v)}
@@ -411,18 +342,6 @@ export default function Simulator({ data, onChange }) {
                     onChange={(v) => setSc(i, { rate: v })}
                   />
                   <span className="u">%</span>
-                  <div className="chips">
-                    {[10, 20].map((v) => (
-                      <button
-                        type="button"
-                        key={v}
-                        className={c.rate === v ? "on" : ""}
-                        onClick={() => setSc(i, { rate: v })}
-                      >
-                        {v}%
-                      </button>
-                    ))}
-                  </div>
                 </td>
               ))}
               <MemoCell
@@ -493,6 +412,33 @@ export default function Simulator({ data, onChange }) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="panel foot">
+        <div className="ctrl">
+          <label>
+            法定福利費率
+            <NumInput
+              className="small"
+              decimal
+              label="法定福利費率"
+              value={data.welfare}
+              onChange={(v) => onChange({ ...data, welfare: v })}
+            />
+            %
+          </label>
+          <label>
+            法人税等の実効税率
+            <NumInput
+              className="small"
+              decimal
+              label="実効税率"
+              value={data.tax}
+              onChange={(v) => onChange({ ...data, tax: v })}
+            />
+            %
+          </label>
+        </div>
       </div>
     </>
   );

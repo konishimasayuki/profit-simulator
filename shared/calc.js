@@ -47,8 +47,8 @@ export function defaultSga() {
   }));
 }
 
-export function makeScenario(name, price, units, rate) {
-  return { name, price, units, rate };
+export function makeScenario(name, units, rate) {
+  return { name, units, rate };
 }
 
 export function defaultData() {
@@ -56,13 +56,14 @@ export function defaultData() {
     v: VERSION,
     welfare: 15,
     tax: 30,
+    price: 2000000,
     memo: {},
     sga: defaultSga(),
     sc: [
-      makeScenario("手数料10%", 2000000, 10, 10),
-      makeScenario("手数料20%", 2000000, 10, 20),
-      makeScenario("10%・台数増", 2000000, 17, 10),
-      makeScenario("20%・台数減", 2000000, 7, 20),
+      makeScenario("手数料10%", 10, 10),
+      makeScenario("手数料20%", 10, 20),
+      makeScenario("10%・台数増", 17, 10),
+      makeScenario("20%・台数減", 7, 20),
     ],
   };
 }
@@ -95,6 +96,7 @@ export function normalize(d) {
     v: VERSION,
     welfare: num(d.welfare),
     tax: num(d.tax),
+    price: num(d.price ?? d.sc[0]?.price ?? 2000000),
     memo,
     sga: mergeSga(d.sga).map((it) => ({
       key: str(it.key, 40) || uid(),
@@ -111,7 +113,6 @@ export function normalize(d) {
     })),
     sc: d.sc.map((c, i) => ({
       name: str(c.name, 60) || `パターン${i + 1}`,
-      price: num(c.price),
       units: num(c.units),
       rate: num(c.rate),
     })),
@@ -139,10 +140,10 @@ export function sgaSummary(d) {
 }
 
 export function calc(c, d, s = sgaSummary(d)) {
-  const sales = (c.price * c.units * c.rate) / 100;
+  const sales = (d.price * c.units * c.rate) / 100;
   const op = sales - s.sgaT;
   const tax = op > 0 ? (op * d.tax) / 100 : 0;
-  const feePer = (c.price * c.rate) / 100;
+  const feePer = (d.price * c.rate) / 100;
   return {
     sales,
     sgaT: s.sgaT,
