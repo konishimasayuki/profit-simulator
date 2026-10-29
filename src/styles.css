@@ -459,3 +459,94 @@ td.memo {
 .panel.foot {
   margin-top: 14px;
 }
+
+/* PDF出力用（画面外に描画） */
+.pdf-host {
+  position: absolute;
+  left: -20000px;
+  top: 0;
+}
+.pdf-sheet {
+  width: 1123px;
+  padding: 24px 28px;
+  background: #ffffff;
+  color: #1c2422;
+  font-family: "BIZ UDPGothic", "Hiragino Sans", "Noto Sans JP", sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.pdf-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 2px solid #1f4d45;
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+}
+.pdf-head h1 {
+  font-size: 18px;
+  color: #1f4d45;
+  margin: 0;
+}
+.pdf-head div {
+  font-size: 11px;
+  color: #5f6b68;
+}
+.pdf-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.pdf-table th,
+.pdf-table td {
+  border-bottom: 1px solid #d6dcda;
+  padding: 3px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+.pdf-table thead th {
+  background: #1f4d45;
+  color: #ffffff;
+  font-weight: 700;
+  padding: 5px 8px;
+}
+.pdf-table .pl {
+  text-align: left;
+}
+.pdf-table .pm {
+  text-align: left;
+  color: #5f6b68;
+  font-size: 11px;
+}
+.pdf-table tr.psec td {
+  background: #eef1f0;
+  color: #5f6b68;
+  font-weight: 700;
+  font-size: 11px;
+  text-align: left;
+}
+.pdf-table tr.pb1 td {
+  font-weight: 700;
+}
+.pdf-table tr.pb2 td {
+  font-weight: 700;
+  background: #e2eeeb;
+}
+.pdf-table tr.pd td {
+  color: #5f6b68;
+  font-size: 11px;
+}
+.pdf-table tr.pd td.pl {
+  padding-left: 22px;
+}
+.pdf-table td.pneg {
+  color: #c23a2b;
+}
+.pdf-foot {
+  margin-top: 8px;
+  font-size: 10.5px;
+  color: #5f6b68;
+}

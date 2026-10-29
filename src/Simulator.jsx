@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   calc,
   defaultData,
@@ -7,16 +7,13 @@ import {
   sgaSummary,
   uid,
 } from "../shared/calc.js";
+import { PdfSheet, buildRows, exportPdf } from "./pdf.jsx";
 
 const PROFIT_ROWS = [
   { k: "op", l: "営業利益", b: 2 },
   { k: "opRate", l: "営業利益率" },
   { k: "tax", l: "法人税等（概算）" },
   { k: "net", l: "税引後利益", b: 2 },
-];
-const INDEX_ROWS = [
-  { k: "feePer", l: "1台あたり手数料" },
-  { k: "opPer", l: "1台あたり営業利益" },
   { k: "bep", l: "損益分岐台数" },
 ];
 
@@ -62,7 +59,9 @@ function showCalc(k, v) {
   return fmt(v);
 }
 
-export default function Simulator({ data, onChange }) {
+export default function Simulator({ data, onChange, title }) {
+  const [exporting, setExporting] = useState(false);
+  const sheetRef = useRef(null);
   const S = useMemo(() => sgaSummary(data), [data]);
   const results = useMemo(
     () => data.sc.map((c) => calc(c, data, S)),
@@ -249,6 +248,24 @@ export default function Simulator({ data, onChange }) {
     }
   });
 
+  useEffect(() => {
+    if (!exporting) return;
+    let alive = true;
+    const run = async () => {
+      try {
+        await exportPdf(sheetRef.current, title);
+      } catch {
+        window.alert("PDFの作成に失敗しました");
+      } finally {
+        if (alive) setExporting(false);
+      }
+    };
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [exporting, title]);
+
   const priceInput = (
     <td>
       <NumInput
@@ -264,6 +281,14 @@ export default function Simulator({ data, onChange }) {
     <>
       <div className="panel">
         <div className="ctrl">
+          <button
+            type="button"
+            className="btn"
+            disabled={exporting}
+            onClick={() => setExporting(true)}
+          >
+            {exporting ? "PDF作成中…" : "PDF出力（A4横）"}
+          </button>
           <span className="sp" />
           <button type="button" className="btn ghost" onClick={reset}>
             初期値に戻す
@@ -394,25 +419,18 @@ export default function Simulator({ data, onChange }) {
                 />
               </tr>
             ))}
-
-            {section("指標")}
-            {INDEX_ROWS.map((r) => (
-              <tr key={r.k}>
-                <th className="lab">{r.l}</th>
-                {results.map((x, i) => (
-                  <td key={i} className={`c ${x[r.k] < 0 ? "neg" : ""}`}>
-                    {showCalc(r.k, x[r.k])}
-                  </td>
-                ))}
-                <MemoCell
-                  value={data.memo[r.k]}
-                  onChange={(v) => setMemo(r.k, v)}
-                />
-              </tr>
-            ))}
           </tbody>
         </table>
       </div>
+
+      {exporting && (
+        <PdfSheet
+          title={title}
+          data={data}
+          rows={buildRows(data, S, results)}
+          sheetRef={sheetRef}
+        />
+      )}
 
       <div className="panel foot">
         <div className="ctrl">

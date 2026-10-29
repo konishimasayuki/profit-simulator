@@ -267,7 +267,7 @@ export default function App() {
       </div>
 
       {cur ? (
-        <Simulator data={cur.data} onChange={onData} />
+        <Simulator data={cur.data} onChange={onData} title={cur.name} />
       ) : (
         <div className="panel">
           {status === "loading"
